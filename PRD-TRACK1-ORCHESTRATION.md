@@ -12,9 +12,9 @@ Build a pipeline: raw GTM signal (a sales call transcript, notes, anything text-
 
 ## Before you start — access checklist
 
-- [ ] **Surfer workspace invite** — Oleg needs to add you as a team member on his Surfer workspace (`1385655-ohsuvorav`) before you can connect. Ping him tonight if you don't have this yet — you're fully blocked without it.
-- [ ] **Surfer MCP connector** — once you have workspace access, connect it like any custom MCP connector (Claude Desktop/claude.ai: Settings → Connectors → Add custom connector). Docs: `https://docs.surferseo.com/en/articles/12944186-surfer-mcp`. Sign in once, session persists.
-- [ ] **GitHub repo access** — you should already have a collaborator invite on `ohsuvorav/gtm-hackathon`. Accept it, clone it.
+- [x] **Surfer workspace invite** — sent (2026-09-04) to anton.masiukiewicz1@gmail.com, Member role, all workspaces, expires Sep 11. Accept the email invite before you can connect.
+- [ ] **Surfer MCP connector** — once you've accepted the workspace invite, connect it like any custom MCP connector (Claude Desktop/claude.ai: Settings → Connectors → Add custom connector). Docs: `https://docs.surferseo.com/en/articles/12944186-surfer-mcp`. Sign in once, session persists.
+- [x] **GitHub repo access** — collaborator invite sent and accepted on `ohsuvorav/gtm-hackathon`.
 
 ## Why this exists (one paragraph, for context)
 
