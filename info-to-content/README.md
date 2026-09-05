@@ -1,6 +1,6 @@
 # InfoToContent Codex plugin
 
-InfoToContent finds one customer call in a connected source such as Fyxer, compares its evidence with an existing Surfer SEO website audit, and creates one reviewable Markdown draft when the call matches a viable missing-content recommendation.
+InfoToContent finds one named customer call in Fyxer, compares its evidence with an existing Surfer SEO website audit, and creates one reviewable Markdown draft when the call matches a viable missing-content recommendation. With explicit approval, it then saves that validated draft into Surfer Drafts.
 
 The authoritative v2 behavior is defined in [SPEC.md](SPEC.md).
 
@@ -10,9 +10,11 @@ existing Surfer gaps + connected call
 grounded insights → best match or no match
                 ↓
           brief → draft → human review
+                            ↓ approved
+                     Surfer Drafts
 ```
 
-Surfer is an upstream requirement, not optional post-selection enrichment. The website must already be connected and audited. The plugin reads current `write` recommendations; it never starts an audit or publishes content.
+Surfer is an upstream requirement, not optional post-selection enrichment. The website must already be connected and audited. The plugin reads current `write` recommendations; it never starts an audit or publishes content to a website.
 
 ## Requirements
 
@@ -28,11 +30,13 @@ Codex performs semantic extraction, relevance assessment, and drafting. Pydantic
 
 With Fyxer connected to the session and a recording named `call_transcript`, invoke:
 
-> Find the Fyxer recording "call_transcript", compare it with our Surfer content gaps, and create a draft if it is relevant.
+```text
+$info-to-content:info-to-content call_transcript
+```
 
-The skill reads Surfer first, retrieves only that recording, and either stops with an explicit no-match reason or returns one validated draft with a visible `Surfer gap → call quote → insight → draft` chain.
+The positional argument is the Fyxer recording title. The skill reads Surfer first, resolves exactly one exact-title recording, and either stops with an explicit no-match reason or returns one validated draft with a visible `Surfer gap → call quote → insight → draft` chain.
 
-Creating or updating a Surfer Content Editor is a separate opt-in action because it may consume a credit.
+After successful validation, the skill asks whether to **Publish to Surfer Drafts**. Creating a new Content Editor consumes one credit; reusing an editor replaces its current document body. Only an explicit confirmation permits either mutation. This handoff saves to Surfer's Content Editor and does not publish to the website.
 
 ## State
 

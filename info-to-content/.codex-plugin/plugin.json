@@ -1,6 +1,6 @@
 {
   "name": "info-to-content",
-  "version": "0.1.0+codex.20260905171159",
+  "version": "0.1.0+codex.20260905174953",
   "description": "Match connected customer calls to existing Surfer content gaps and create grounded drafts.",
   "author": {
     "name": "InfoToContent"

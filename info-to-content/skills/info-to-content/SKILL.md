@@ -7,9 +7,19 @@ description: Find a customer call in Fyxer or another connected source, compare 
 
 Run a Surfer-first evidence pipeline:
 
-`existing Surfer gaps + connected call → insights → one match or no match → brief → draft`
+`existing Surfer gaps + named Fyxer recording → insights → one match or no match → brief → draft → optional Surfer Drafts handoff`
 
-Surfer gap data is required. A strong match drafts automatically and stops for human review. Never publish.
+Surfer gap data is required. A strong match drafts automatically and stops for human review before any Surfer write. Never publish to a website or CMS.
+
+## Invocation
+
+The expected explicit invocation is:
+
+```text
+$info-to-content:info-to-content <recording-name>
+```
+
+Treat the single positional argument as the title of a Fyxer recording, not as transcript text or a local path. Require a non-empty recording name. Do not reinterpret an unmatched name as another source unless the user explicitly supplies that source or transcript.
 
 ## Setup
 
@@ -32,11 +42,11 @@ Normalize website DNA with `build_website_dna.py`. Assess every recommendation a
 
 Stop when Surfer is unavailable, brand knowledge is incomplete, recommendations cannot be read, or no viable gaps remain. Report the persisted reason or artifact; transcript-only ideation is outside this workflow.
 
-### 2. Retrieve one call
+### 2. Retrieve one call by recording name
 
-Read [sources.md](references/sources.md). Resolve exactly one recording from the source named by the user, retrieve its transcript, save the tool response verbatim to a staging file, and run `save_source.py`.
+Read [sources.md](references/sources.md). Pass the positional recording name to Fyxer `find_recordings`, resolve exactly one exact-title match, retrieve its transcript, save the tool response verbatim to a staging file, and run `save_source.py`.
 
-Access only the requested recording. Ask the user to choose when the lookup is ambiguous. A local or pasted transcript follows the same helper path with provider `local`.
+Access only the requested recording. Ask the user to choose when more than one exact-title match remains. Stop when no exact-title match exists. A local or pasted transcript follows the same helper path with provider `local` only when the user explicitly supplies it instead of using the positional Fyxer form.
 
 ### 3. Extract grounded insights
 
@@ -52,15 +62,23 @@ A match must use an unchanged viable gap ID, recommendation ID, and keyword; cit
 
 Stop successfully when no match survives. Do not create speculative alternatives.
 
-### 5. Draft automatically
+### 5. Draft locally and validate
 
 For a successful match, create a brief candidate and run `build_brief.py`. Run `prepare_draft_context.py` and draft only from its output. Follow the custom voice when available; otherwise use a conservative, direct style and state that fallback in the handoff.
 
-Audit every customer-specific claim against the bundled insights. Save Markdown beginning with a heading through `save_draft.py`, then run `validate.py`.
+Audit every customer-specific claim against the bundled insights. Save Markdown beginning with a heading through `save_draft.py`, then run `validate.py`. Do not offer the Surfer handoff unless validation succeeds.
 
-Return the matched keyword, confidence and rationale, draft and brief paths, validation result, and one `Surfer gap → transcript quote → insight → draft claim` chain.
+### 6. Offer to publish to Surfer Drafts
 
-Creating or updating a Surfer Content Editor is a separate opt-in action because it may consume a credit. Local drafting never requires it.
+Read the "Publish to Surfer Drafts" section of [surfer.md](references/surfer.md). After showing the validated result, ask for explicit confirmation immediately before the first Surfer mutation. Use the phrase **Publish to Surfer Drafts** and clarify that this saves into a Surfer Content Editor; it does not publish to the website.
+
+- When the matched recommendation has no `content_editor_id`, state that confirmation will create a Content Editor and consume one Content Editor credit.
+- When it already has a `content_editor_id`, state that confirmation will replace that editor's entire current document body and does not create another editor.
+- A refusal, ambiguous response, or no response performs no Surfer mutation and leaves the local draft available.
+
+After affirmative confirmation, reuse the linked editor or create exactly one idempotently, write the validated Markdown with Surfer `content__update`, and verify the stored body with `content__get`. Never call Surfer AI Article generation: the locally grounded draft is the content being handed off.
+
+Return the matched keyword, confidence and rationale, draft and brief paths, validation result, one `Surfer gap → transcript quote → insight → draft claim` chain, and—only after a successful handoff—the Content Editor ID, link, and score status.
 
 ## Recovery
 
