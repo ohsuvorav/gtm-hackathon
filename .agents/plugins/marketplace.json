@@ -1,0 +1,20 @@
+{
+  "name": "gtm-hackathon",
+  "interface": {
+    "displayName": "GTM Hackathon"
+  },
+  "plugins": [
+    {
+      "name": "info-to-content",
+      "source": {
+        "source": "local",
+        "path": "./info-to-content"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_USE"
+      },
+      "category": "Productivity"
+    }
+  ]
+}
