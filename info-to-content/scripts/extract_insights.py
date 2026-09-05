@@ -15,7 +15,7 @@ from common import (
     validate_many,
 )
 from models import ContentInsight, EvidenceRef
-from state import artifact_path, load_optional, resolve_state_dir, write_json
+from state import artifact_path, ensure_state_v2, load_optional, resolve_state_dir, write_json
 
 
 def parse_transcripts(items: list[str]) -> dict[str, str]:
@@ -68,7 +68,7 @@ def canonicalize(insight: ContentInsight) -> ContentInsight:
         update={
             "id": stable_id("ins", insight.type, insight.topic, insight.statement),
             "evidence": evidence,
-            "occurrence_count": max(insight.occurrence_count, len(evidence)),
+            "occurrence_count": len(evidence),
         }
     )
 
@@ -81,26 +81,23 @@ def merge(insights: list[ContentInsight]) -> list[ContentInsight]:
         if previous is None:
             merged[insight.id] = insight
             continue
-        previous_evidence = {
-            (item.source_id, normalized_text(item.quote), item.speaker, item.timestamp)
-            for item in previous.evidence
-        }
-        incoming_evidence = {
-            (item.source_id, normalized_text(item.quote), item.speaker, item.timestamp)
-            for item in insight.evidence
-        }
         evidence = previous.evidence + insight.evidence
-        combined = canonicalize(previous.model_copy(update={"evidence": evidence}))
-        merged[insight.id] = combined.model_copy(
-            update={
-                "occurrence_count": max(
-                    combined.occurrence_count,
-                    insight.occurrence_count,
-                    previous.occurrence_count + len(incoming_evidence - previous_evidence),
-                )
-            }
-        )
+        merged[insight.id] = canonicalize(previous.model_copy(update={"evidence": evidence}))
     return sorted(merged.values(), key=lambda item: (item.topic.casefold(), item.id))
+
+
+def without_sources(insights: list[ContentInsight], source_ids: set[str]) -> list[ContentInsight]:
+    """Remove stale evidence for sources being reprocessed, preserving other calls."""
+    result: list[ContentInsight] = []
+    for insight in insights:
+        evidence = [item for item in insight.evidence if item.source_id not in source_ids]
+        if evidence:
+            result.append(
+                insight.model_copy(
+                    update={"evidence": evidence, "occurrence_count": len(evidence)}
+                )
+            )
+    return result
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -127,9 +124,13 @@ def main() -> int:
         )
         ground(candidates, transcripts)
         state_dir = resolve_state_dir(args.state_dir)
-        existing = [] if args.replace else validate_many(
-            ContentInsight,
-            load_optional(artifact_path(state_dir, "insights"), []),
+        ensure_state_v2(state_dir)
+        existing = [] if args.replace else without_sources(
+            validate_many(
+                ContentInsight,
+                load_optional(artifact_path(state_dir, "insights"), []),
+            ),
+            set(transcripts),
         )
         combined = merge(existing + candidates)
         output = write_json(artifact_path(state_dir, "insights"), dump_models(combined))
