@@ -113,7 +113,11 @@ def icp_terms(dna_path: Path) -> set[str]:
     This is why stage 4 (DNA) has to run before stage 2 — the metric filters below
     cannot tell an on-topic cluster from an off-topic one without knowing the subject.
     """
-    dna = json.loads(dna_path.read_text())
+    return icp_terms_from_dna(json.loads(dna_path.read_text()))
+
+
+def icp_terms_from_dna(dna: dict) -> set[str]:
+    """Derive ICP vocabulary from an already-loaded DNA object."""
     seed = " ".join(
         dna.get(field, "")
         for field in ("products_services", "topics_to_cover", "customer_profile")
@@ -122,6 +126,65 @@ def icp_terms(dna_path: Path) -> set[str]:
     words = {w.rstrip("s") for w in re.findall(r"[a-z]{3,}", seed)}
     stop = {"and", "the", "for", "possibly", "unknown", "inactive", "presence", "online"}
     return (words - stop) | ADJACENT_TERMS
+
+
+def from_recommendations(payload: dict, terms: set[str]) -> dict:
+    """Convert live Surfer ``write`` recommendations to the gap contract.
+
+    Unlike the legacy Content Planner CSV, a recommendation contains one primary
+    keyword rather than a full keyword cluster. Surfer has already marked these as
+    gaps, so this layer only removes missing, too-difficult, and off-ICP items.
+    """
+    viable, rejected = [], []
+    for item in payload.get("data", []):
+        keyword = str(item.get("main_keyword") or "").strip()
+        title = str(item.get("title") or keyword).strip()
+        topic = str(item.get("topic_title") or "").strip()
+        raw_difficulty = item.get("avg_difficulty")
+        difficulty = round(raw_difficulty / 100, 2) if raw_difficulty is not None else 0
+        searchable = " ".join((keyword, title, topic))
+        relevance = 1.0 if keyword and _is_relevant(searchable, terms) else 0.0
+
+        flags = []
+        if not keyword:
+            flags.append("missing-keyword")
+        if difficulty >= MAX_VIABLE_DIFFICULTY:
+            flags.append("too-difficult")
+        if relevance < MIN_ICP_RELEVANCE:
+            flags.append("off-icp")
+
+        entry = {
+            "cluster": title,
+            "opportunity": item.get("score", 0),
+            "icp_relevance": relevance,
+            "volume": item.get("search_volume") or 0,
+            "traffic": 0,
+            "avg_difficulty": difficulty,
+            "capture_rate": 0.0,
+            "keywords": [
+                {
+                    "keyword": keyword,
+                    "volume": item.get("search_volume") or 0,
+                    "difficulty": difficulty,
+                }
+            ] if keyword else [],
+            "recommendation_id": item.get("id"),
+            "content_editor_id": item.get("content_editor_id"),
+            "location": item.get("location"),
+            "topic_title": item.get("topic_title"),
+            "reasons": item.get("reasons") or [],
+        }
+        if flags:
+            rejected.append({**entry, "rejected_for": flags})
+        else:
+            viable.append(entry)
+
+    return {
+        "source": "surferseo-recommendations-mcp",
+        "derived_gap_flag": False,
+        "viable": viable,
+        "rejected": rejected,
+    }
 
 
 def parse(csv_path: Path, terms: set[str]) -> list[Cluster]:

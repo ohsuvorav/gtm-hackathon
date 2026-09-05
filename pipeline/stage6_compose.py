@@ -13,9 +13,8 @@ from pathlib import Path
 ROOT = Path(__file__).parent.parent
 FIXTURES = ROOT / "data" / "fixtures"
 
-# Surfer returns no voice or tone data, so when no past posts exist there is nothing to
-# derive style from. These are conservative defaults that fail toward plainness — stated
-# in the prompt as defaults so a reader knows they were not observed.
+# Live mode supplies a Surfer custom voice. These conservative rules remain the
+# fixture/fallback behavior when neither that voice nor past posts are available.
 DEFAULT_VOICE = [
     "Plain declarative sentences. No hooks, no call to action, no rhetorical-question opener.",
     "Concrete over abstract: a number, a quote, or a specific failure beats a claim.",
@@ -28,19 +27,34 @@ def load(name: str) -> dict:
     return json.loads((FIXTURES / name).read_text())
 
 
-def voice_section(posts_path: Path) -> tuple[str, list[str]]:
-    """Voice comes from past posts. Say so plainly when there are none."""
-    if not posts_path.exists():
+def voice_section(posts_path: Path, voice_path: Path | None = None) -> str:
+    """Prefer the live Surfer custom voice, with the old fallback retained."""
+    if voice_path and voice_path.exists() and voice_path.read_text().strip():
         return (
-            "No past posts were available, and Surfer's site analysis returns no voice or "
-            "tone data. The rules below are conservative defaults, not observed style.",
-            DEFAULT_VOICE,
+            "The following is the workspace's custom voice reference text from Surfer. "
+            "Follow its positioning and style constraints:\n\n"
+            + voice_path.read_text().strip()
         )
+    if not posts_path.exists():
+        note = (
+            "No past posts were available, and Surfer's site analysis returns no voice or "
+            "tone data. The rules below are conservative defaults, not observed style."
+        )
+        return note + "\n\n" + "\n".join(f"- {rule}" for rule in DEFAULT_VOICE)
     posts = [json.loads(line) for line in posts_path.read_text().splitlines() if line.strip()]
-    return f"Derived from {len(posts)} past posts.", DEFAULT_VOICE
+    return (
+        f"Derived from {len(posts)} past posts.\n\n"
+        + "\n".join(f"- {rule}" for rule in DEFAULT_VOICE)
+    )
 
 
-def compose(dna: dict, gaps: dict, signal: dict, posts_path: Path) -> str:
+def compose(
+    dna: dict,
+    gaps: dict,
+    signal: dict,
+    posts_path: Path,
+    voice_path: Path | None = None,
+) -> str:
     match = signal.get("match")
     if not match:
         raise SystemExit("signal has no match — stage 6 should not have been reached")
@@ -55,7 +69,7 @@ def compose(dna: dict, gaps: dict, signal: dict, posts_path: Path) -> str:
             "stage 1 matched against a rejected or invented cluster"
         )
 
-    voice_note, voice_rules = voice_section(posts_path)
+    voice = voice_section(posts_path, voice_path)
     core = signal["core"]
 
     supporting = "\n".join(
@@ -117,9 +131,7 @@ keyword brief. Do not smooth them out.
 
 ## Voice
 
-{voice_note}
-
-{chr(10).join(f'- {rule}' for rule in voice_rules)}
+{voice}
 
 ## Hard rules
 

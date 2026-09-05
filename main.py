@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only SurferSEO MCP explorer.
+"""SurferSEO MCP explorer and local DNA synchronizer.
 
 The script delegates OAuth to ``mcp-remote``. On the first run it opens Surfer's
 login/consent page; later runs reuse the OAuth session cached by mcp-remote.
@@ -25,6 +25,7 @@ from typing import Any
 CLIENT_INFO = {"name": "surferseo-readonly-explorer", "version": "0.1.0"}
 PROTOCOL_VERSION = "2025-03-26"
 DEFAULT_SERVER_URL = "https://mcp.surferseo.com/mcp"
+DEFAULT_DNA_DIR = Path(__file__).parent / "data" / "dna"
 
 
 class McpError(RuntimeError):
@@ -212,6 +213,79 @@ def _write_csv(rows: list[dict[str, Any]], output: Path) -> None:
     print(f"Wrote {len(rows)} keyword recommendations to {output}")
 
 
+def _select_voice_id(payload: dict[str, Any], voice_id: int | None) -> int:
+    """Pick an explicitly requested voice, otherwise the workspace default."""
+    voices = payload.get("data", [])
+    if voice_id is not None:
+        if any(item.get("id") == voice_id for item in voices):
+            return voice_id
+        raise McpError(f"Custom voice {voice_id} does not exist in this workspace")
+
+    default = next((item for item in voices if item.get("default")), None)
+    if default:
+        return int(default["id"])
+    if len(voices) == 1:
+        return int(voices[0]["id"])
+    if not voices:
+        raise McpError("The workspace has no custom voices")
+    raise McpError("The workspace has no default custom voice; provide --voice-id")
+
+
+def fetch_dna(
+    client: StdioMcpClient,
+    workspace_id: int,
+    *,
+    voice_id: int | None = None,
+    output_dir: Path = DEFAULT_DNA_DIR,
+) -> tuple[Path, Path]:
+    """Fetch Surfer's default voice and brand knowledge, replacing both DNA files."""
+    brand, voice = fetch_dna_data(client, workspace_id, voice_id=voice_id)
+
+    site_dna = brand.get("knowledge")
+    voice_text = voice.get("reference_text")
+    if not isinstance(site_dna, str) or not site_dna.strip():
+        raise McpError("brand__get returned no site DNA in its 'knowledge' field")
+    if not isinstance(voice_text, str) or not voice_text.strip():
+        raise McpError("custom_voice__get returned no 'reference_text'")
+
+    # Validate both responses before replacing either local file.
+    output_dir.mkdir(parents=True, exist_ok=True)
+    voice_path = output_dir / "mirality-positioning.md"
+    site_path = output_dir / "site_dna.md"
+    voice_path.write_text(voice_text, encoding="utf-8")
+    site_path.write_text(site_dna, encoding="utf-8")
+    return voice_path, site_path
+
+
+def fetch_dna_data(
+    client: StdioMcpClient,
+    workspace_id: int,
+    *,
+    voice_id: int | None = None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Return the raw brand and selected custom-voice MCP payloads."""
+    brand = client.call_tool("brand__get", {"workspace_id": workspace_id})
+    voices = client.call_tool(
+        "custom_voice__list",
+        {
+            "workspace_id": workspace_id,
+            "page": 1,
+            "page_size": 100,
+            "sort": "updated_at",
+            "order": "desc",
+        },
+    )
+    selected_voice_id = _select_voice_id(voices, voice_id)
+    voice = client.call_tool(
+        "custom_voice__get",
+        {"workspace_id": workspace_id, "custom_voice_id": selected_voice_id},
+    )
+
+    if not isinstance(brand, dict) or not isinstance(voice, dict):
+        raise McpError("Surfer returned an unexpected DNA response")
+    return brand, voice
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -224,6 +298,22 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("smoke", help="List tools and workspaces (read-only)")
     subparsers.add_parser("tools", help="List exposed Surfer MCP tools")
     subparsers.add_parser("workspaces", help="List Surfer workspaces (read-only)")
+
+    dna = subparsers.add_parser(
+        "dna", help="Replace local voice and site DNA files from Surfer"
+    )
+    dna.add_argument("--workspace-id", type=int)
+    dna.add_argument(
+        "--voice-id",
+        type=int,
+        help="Custom voice to fetch (default: workspace default voice)",
+    )
+    dna.add_argument(
+        "--output-dir",
+        type=Path,
+        default=DEFAULT_DNA_DIR,
+        help=f"DNA directory (default: {DEFAULT_DNA_DIR})",
+    )
 
     keywords = subparsers.add_parser(
         "keywords", help="Fetch Topical Map/write recommendations (read-only)"
@@ -291,6 +381,17 @@ def run(args: argparse.Namespace, client: StdioMcpClient) -> None:
             _print_json(payload)
         elif not args.output:
             _print_json(rows)
+        return
+
+    if args.command == "dna":
+        voice_path, site_path = fetch_dna(
+            client,
+            _require_workspace_id(args),
+            voice_id=args.voice_id,
+            output_dir=args.output_dir,
+        )
+        print(f"Replaced {voice_path}")
+        print(f"Replaced {site_path}")
         return
 
     if args.command == "content-editors":

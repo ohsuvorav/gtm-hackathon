@@ -1,17 +1,8 @@
-"""Stage 4 — site DNA.
-
-Live path is Surfer's MCP. The call shape is known:
-
-    mcp__surferseo__brand__get({ workspace_id: 1385655 })
-
-MCP tools are called by the agent, not by this process, so `live` mode here means
-"an agent ran that call and wrote the result to the fixture path." Wiring this process
-directly to an MCP client is deferred — see NEXT.md.
-
-The six fields Surfer returns are the contract stage 2 and stage 6 read.
-"""
+"""Stage 4 — normalize Surfer brand knowledge into the pipeline DNA contract."""
 
 from __future__ import annotations
+
+import re
 
 from .common import FIXTURES, read_json, source_for
 
@@ -28,14 +19,34 @@ FIELD_MAP = {
 }
 
 
-def from_mcp_response(response: dict) -> dict:
-    """Normalize a `brand__get` response into the fixture schema."""
-    dna = {key: str(response.get(label, "")).strip() for label, key in FIELD_MAP.items()}
+def _knowledge_sections(markdown: str) -> dict[str, str]:
+    """Parse Surfer's ``**Heading**`` brand-knowledge Markdown sections."""
+    matches = list(re.finditer(r"^\*\*(.+?)\*\*\s*$", markdown, re.MULTILINE))
+    sections: dict[str, str] = {}
+    for index, match in enumerate(matches):
+        start = match.end()
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(markdown)
+        sections[match.group(1).strip()] = markdown[start:end].strip()
+    return sections
+
+
+def from_mcp_response(response: dict, workspace_id: int = WORKSPACE_ID) -> dict:
+    """Normalize a live ``brand__get`` response into the pipeline's JSON schema."""
+    knowledge = response.get("knowledge")
+    source = _knowledge_sections(knowledge) if isinstance(knowledge, str) else response
+    dna = {key: str(source.get(label, "")).strip() for label, key in FIELD_MAP.items()}
+    missing = [key for key, value in dna.items() if not value]
+    if missing:
+        raise ValueError(f"Surfer brand knowledge is missing DNA fields: {', '.join(missing)}")
+    if source.get("Problem solved"):
+        dna["problem_solved"] = str(source["Problem solved"]).strip()
     dna["_meta"] = {
         "source": "surferseo-mcp",
         "mode": "live",
-        "workspace_id": WORKSPACE_ID,
-        "voice_available": False,  # brand__get returns no tone or style data
+        "workspace_id": workspace_id,
+        "brand_id": response.get("id"),
+        "brand_url": response.get("url"),
+        "gathering_data_status": response.get("gathering_data_status"),
     }
     return dna
 
@@ -43,9 +54,7 @@ def from_mcp_response(response: dict) -> dict:
 def run() -> dict:
     if source_for(4) == "live":
         raise SystemExit(
-            "Stage 4 live mode needs an agent to call "
-            f"mcp__surferseo__brand__get({{ workspace_id: {WORKSPACE_ID} }}) "
-            "and write the result through from_mcp_response() to "
-            f"{FIXTURES / 'site_dna.json'}"
+            "Use 'python3 run.py TRANSCRIPT --live' for live Surfer DNA fetching; "
+            "stage4_dna.run() is the fixture-only adapter"
         )
     return read_json(FIXTURES / "site_dna.json")

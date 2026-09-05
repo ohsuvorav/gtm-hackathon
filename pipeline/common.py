@@ -15,7 +15,7 @@ PROMPTS = Path(__file__).parent / "prompts"
 
 OUT.mkdir(parents=True, exist_ok=True)
 
-OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-5")
+OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-5.6-terra")
 
 
 def source_for(stage: int) -> str:

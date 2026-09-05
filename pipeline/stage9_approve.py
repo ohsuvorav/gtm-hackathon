@@ -10,7 +10,7 @@ from .common import OUT
 def run(draft: str, keyword: str, score: dict | None, interactive: bool = True) -> str:
     print("\n" + "=" * 72)
     print(f"DRAFT READY — target keyword: {keyword}")
-    print(f"Surfer score: {score if score else 'unavailable (stage 8 not authenticated)'}")
+    print(f"Surfer score: {score if score else 'unavailable (stage 8 was skipped)'}")
     print("=" * 72)
     print(draft[:1200] + ("\n\n[...truncated for review...]" if len(draft) > 1200 else ""))
     print("=" * 72)
