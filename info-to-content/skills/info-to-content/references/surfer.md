@@ -1,28 +1,31 @@
-# Surfer enrichment
+# Surfer audit input
 
-Use this branch only after an opportunity is selected and the user requested SEO or Surfer enrichment.
-
-## Connect
-
-Use the Surfer MCP tools bundled with this plugin. If they expose only authentication tools, trigger the normal OAuth flow and let the user complete browser consent. Resume when the data tools appear. Credentials stay in the MCP OAuth flow; never request, read, or persist them in Python or workspace files.
-
-If authentication is declined, unavailable, or fails, write an unavailable `SurferContext` candidate and continue without SEO enrichment.
+Use this branch before retrieving or analyzing a call. Surfer provides the website context and the closed set of content gaps the call may match.
 
 ## Retrieve
 
-Inspect the currently exposed Surfer tool names and schemas rather than assuming an operation exists. Prefer read-only operations that can return:
+Use the bundled Surfer MCP server. Trigger its normal OAuth flow when required; credentials remain in MCP and never enter Python or workspace files.
 
-- keyword recommendations relevant to the selected title and angle;
-- an existing Content Editor for the target topic;
-- recommended/NLP terms and target word count;
-- a current content score when content already exists in Surfer.
+Resolve the workspace from an explicit user choice, the only available workspace, or reliable prior context. Ask when multiple workspaces remain ambiguous.
 
-Use the user's selected Surfer workspace. If more than one exists and no reliable prior selection is available, ask which workspace to use.
+Inspect exposed tool schemas, then read:
 
-Create a new Content Editor only when it is necessary for requested enrichment and after telling the user that it may consume a Surfer credit. Updating an editor with a draft is a separate opt-in action; it is never required to create the local brief or draft.
+- completed brand knowledge for the connected website;
+- the selected/default custom voice when available;
+- `recommendation__list` with `type="write"`, sorted by Surfer score.
 
-## Normalize
+These are read operations. Do not connect a website or start an audit.
 
-Translate only fields returned by Surfer into the `SurferContext` schema in [schemas.md](schemas.md). Deduplicate terms, preserve numeric values, and use `null` for data Surfer did not return. A pre-draft score is often `null`.
+## Persist and normalize
 
-Save the candidate in a temporary file and pass it to `build_brief.py --surfer-context <path>`. The helper persists an inspectable copy under `.infotocontent/surfer/<opportunity_id>.json`.
+Save raw tool responses to temporary JSON files. Build a Website DNA candidate from brand knowledge and run `build_website_dna.py`; omit `--custom-voice` when none exists so the helper records the fallback.
+
+Classify every returned recommendation as on-ICP or off-ICP with a short rationale grounded in Website DNA. Run `build_keyword_gaps.py` with the raw recommendations and complete relevance candidate. The helper copies Surfer metrics, converts difficulty basis points to `0–100`, applies the difficulty guard, and persists viable and rejected gaps.
+
+Never invent missing keywords, metrics, recommendation IDs, terms, word counts, or scores.
+
+## Stops and external writes
+
+Surfer connection failure, incomplete brand knowledge, unreadable recommendations, and zero viable gaps are no-content outcomes. Stop and explain the condition instead of using transcript-only topics.
+
+Creating a Content Editor or updating its content is outside the default run. Tell the user it may consume a credit and obtain explicit opt-in immediately before the action.

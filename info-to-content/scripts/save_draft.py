@@ -7,7 +7,7 @@ from pathlib import Path
 
 from common import fail
 from models import ContentBrief
-from state import read_json, resolve_state_dir, write_text
+from state import read_json, require_state_v2, resolve_state_dir, write_text
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -22,6 +22,7 @@ def main() -> int:
     args = build_parser().parse_args()
     try:
         state_dir = resolve_state_dir(args.state_dir)
+        require_state_v2(state_dir)
         ContentBrief.model_validate(
             read_json(state_dir / "briefs" / f"{args.opportunity_id}.json")
         )

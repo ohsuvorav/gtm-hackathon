@@ -1,89 +1,67 @@
 ---
 name: info-to-content
-description: Turn customer call transcripts into grounded customer insights, content opportunities, content briefs, and Markdown drafts, optionally enriched with website context and Surfer SEO. Use when the user provides sales or customer calls for content research, asks what to write based on customer evidence, wants website DNA captured, or asks to draft a selected evidence-backed content idea.
+description: Find a customer call in Fyxer or another connected source, compare grounded call insights with an existing Surfer SEO content-gap audit, and create one evidence-backed Markdown draft when a strong match exists. Use for connected-call content creation, Surfer gap matching, or validating InfoToContent state.
 ---
 
 # InfoToContent
 
-Run an evidence pipeline with a human choice between discovery and drafting:
+Run a Surfer-first evidence pipeline:
 
-`transcripts → insights → opportunities → selected opportunity → brief → draft`
+`existing Surfer gaps + connected call → insights → one match or no match → brief → draft`
 
-Never skip an artifact. Never publish content.
+Surfer gap data is required. A strong match drafts automatically and stops for human review. Never publish.
 
 ## Setup
 
-Find this skill's installed `SKILL.md`, then treat the directory two levels above it as `PLUGIN_ROOT`. Keep the Python environment inside the active workspace so an installed plugin can remain read-only. Run every helper with:
+Treat the directory two levels above this file as `PLUGIN_ROOT`. Keep the Python environment inside the active workspace and run helpers with:
 
 ```bash
 UV_PROJECT_ENVIRONMENT="$PWD/.infotocontent/.venv" \
   uv run --project <PLUGIN_ROOT> python <PLUGIN_ROOT>/scripts/<script>.py ...
 ```
 
-If `uv` is unavailable, create a Python 3.11+ virtual environment and install `<PLUGIN_ROOT>/requirements.txt`. Keep state in the user's current workspace at `.infotocontent/` unless they name another directory.
+Use a clean state directory when `.infotocontent/state.json` is missing but legacy artifacts exist. Read [schemas.md](references/schemas.md) before producing candidate JSON.
 
-Read [schemas.md](references/schemas.md) before producing a candidate JSON file. Read [surfer.md](references/surfer.md) only when the user requests SEO enrichment or Surfer is needed for a selected opportunity.
+## Run
 
-## Route
+### 1. Read the existing Surfer audit
 
-Choose the earliest incomplete stage implied by the request:
+Read [surfer.md](references/surfer.md), then retrieve the selected workspace's completed brand knowledge, optional custom voice, and current `write` recommendations. The website must already be connected and audited in Surfer; this workflow reads that state.
 
-- Transcript files or pasted transcripts: run **Insights**.
-- Website URL or supplied website copy: run **Website DNA**.
-- “What should we write?” or equivalent: ensure insights and website DNA exist, then run **Opportunities**.
-- A selected opportunity or “write #N”: run **Brief**, then **Draft**.
-- A status or validation request: run `validate.py` and summarize the present artifacts.
+Normalize website DNA with `build_website_dna.py`. Assess every recommendation against that DNA, then run `build_keyword_gaps.py`. Rejected recommendations remain inspectable.
 
-When the user requests an end-to-end run and supplies everything, continue through discovery, present the opportunities, and stop for selection. Continue past selection in the same turn only when the user already identified one unambiguously.
+Stop when Surfer is unavailable, brand knowledge is incomplete, recommendations cannot be read, or no viable gaps remain. Report the persisted reason or artifact; transcript-only ideation is outside this workflow.
 
-## Insights
+### 2. Retrieve one call
 
-1. Give every transcript a short stable `source_id`. For pasted text, save it verbatim to a workspace file first.
-2. Extract questions, pains, objections, use cases, and distinctive customer language. Each insight needs at least one exact quote copied from a transcript.
-3. Semantically merge obvious paraphrases before creating candidate JSON. Preserve every supporting quote and source ID.
-4. Run `extract_insights.py` with one `--transcript SOURCE_ID=PATH` per source. Omit `--replace` to merge with existing insights.
-5. Load the saved `insights.json` and report the count plus a compact sample.
+Read [sources.md](references/sources.md). Resolve exactly one recording from the source named by the user, retrieve its transcript, save the tool response verbatim to a staging file, and run `save_source.py`.
 
-This stage is complete only when the helper exits successfully and every persisted insight has verified transcript evidence.
+Access only the requested recording. Ask the user to choose when the lookup is ambiguous. A local or pasted transcript follows the same helper path with provider `local`.
 
-## Website DNA
+### 3. Extract grounded insights
 
-1. For a URL, inspect the public homepage and the smallest useful set of product/about/resource pages. For supplied copy, use only that copy.
-2. Capture what the company does, target audience, products, observable tone, and existing content topics. Use `null` or empty lists when evidence is absent.
-3. Run `build_website_dna.py` and confirm the saved path.
+Extract questions, pains, objections, use cases, and distinctive customer language. Every insight needs an exact transcript quote and the current `source_id`.
 
-This stage is complete only when `website_dna.json` validates. Describe uncertainty instead of filling gaps with guesses.
+Run `extract_insights.py` against the persisted transcript at `.infotocontent/sources/<source_id>.txt`. Reprocessing a source replaces its old evidence while preserving other sources.
 
-## Opportunities
+### 4. Match the best gap
 
-1. Require both `.infotocontent/insights.json` and `.infotocontent/website_dna.json`.
-2. Propose 3–5 distinct opportunities. Prioritize repeated evidence, company and audience relevance, and novelty against `existing_topics`.
-3. Cite only persisted insight IDs. Supply a provisional score; Python recalculates it from occurrence counts and ranks the result.
-4. Run `discover_opportunities.py`, then present its saved order with IDs, titles, angles, evidence scores, and a one-line rationale.
-5. Ask the user which one to write.
+Compare the current call's insights with only the viable gaps in `keyword_gaps.json`. Produce one best match or an explicit no-match candidate, then run `match_opportunity.py`.
 
-This stage is complete when 3–5 opportunities validate and are persisted. Stop here unless selection was already explicit.
+A match must use an unchanged viable gap ID, recommendation ID, and keyword; cite current-call insights; include one of their exact quotes; and score at least `0.60`. The helper converts lower confidence to a persisted no-match result.
 
-## Brief
+Stop successfully when no match survives. Do not create speculative alternatives.
 
-1. Resolve a selection such as `#2` against the current persisted ordering and state its opportunity ID.
-2. Load the selected opportunity and its supporting insights.
-3. If requested, obtain Surfer context using [surfer.md](references/surfer.md). Always create a Surfer context record, including an explicit unavailable record on fallback.
-4. Build a candidate brief grounded only in the selected opportunity. Required points must trace to supporting insights, website DNA, or clearly framed general explanation.
-5. Run `build_brief.py` with `--surfer-context` when a context file exists. The helper locks title, audience, angle, SEO terms, and target length to validated upstream state.
+### 5. Draft automatically
 
-This stage is complete only when both the brief and the Surfer availability record are persisted.
+For a successful match, create a brief candidate and run `build_brief.py`. Run `prepare_draft_context.py` and draft only from its output. Follow the custom voice when available; otherwise use a conservative, direct style and state that fallback in the handoff.
 
-## Draft
+Audit every customer-specific claim against the bundled insights. Save Markdown beginning with a heading through `save_draft.py`, then run `validate.py`.
 
-1. Run `prepare_draft_context.py` and draft only from the returned bundle.
-2. Follow the brief and website tone. Use SEO terms naturally. Treat customer quotes as grounding, not permission to expose identities or invent prevalence.
-3. Audit every customer-specific claim: it must be supported by one of the bundled insights. Remove unsupported statistics, outcomes, testimonials, and claims of frequency.
-4. Save Markdown to a staging file and run `save_draft.py`.
-5. Return the draft path, the brief path, and any Surfer limitation. Leave publishing to the user.
+Return the matched keyword, confidence and rationale, draft and brief paths, validation result, and one `Surfer gap → transcript quote → insight → draft claim` chain.
 
-This stage is complete when a non-empty Markdown draft beginning with a heading is saved and `validate.py` passes.
+Creating or updating a Surfer Content Editor is a separate opt-in action because it may consume a credit. Local drafting never requires it.
 
 ## Recovery
 
-When a helper rejects a candidate, fix the candidate rather than editing persisted JSON by hand. When an upstream artifact changes, regenerate its downstream opportunities, briefs, and drafts before presenting them as current.
+Fix rejected candidate files and rerun their helper; persisted JSON is validator-owned. Upstream source or match changes invalidate that source's older opportunity, brief, draft, and topic-level Surfer context.

@@ -1,4 +1,4 @@
-"""Workspace-local, atomic JSON and Markdown persistence."""
+"""Workspace-local, atomic persistence and v2 state initialization."""
 
 from __future__ import annotations
 
@@ -9,9 +9,10 @@ from pathlib import Path
 from typing import Any
 
 DEFAULT_STATE_DIR = Path(".infotocontent")
+SCHEMA_VERSION = 2
 
 
-class StateError(RuntimeError):
+class StateError(ValueError):
     pass
 
 
@@ -29,8 +30,7 @@ def read_json(path: Path) -> Any:
 
 
 def write_json(path: Path, payload: Any) -> Path:
-    text = json.dumps(payload, indent=2, ensure_ascii=False) + "\n"
-    return write_text(path, text)
+    return write_text(path, json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
 
 
 def write_text(path: Path, value: str) -> Path:
@@ -49,10 +49,31 @@ def write_text(path: Path, value: str) -> Path:
     return path
 
 
+def ensure_state_v2(state_dir: Path) -> None:
+    marker = state_dir / "state.json"
+    if marker.exists():
+        require_state_v2(state_dir)
+        return
+    legacy_names = {"insights.json", "website_dna.json", "opportunities.json", "briefs", "drafts"}
+    if state_dir.exists() and any((state_dir / name).exists() for name in legacy_names):
+        raise StateError(
+            f"Legacy unversioned state found in {state_dir}; use a clean state directory for v2"
+        )
+    write_json(marker, {"schema_version": SCHEMA_VERSION})
+
+
+def require_state_v2(state_dir: Path) -> None:
+    marker = state_dir / "state.json"
+    payload = read_json(marker)
+    if payload != {"schema_version": SCHEMA_VERSION}:
+        raise StateError(f"Unsupported state schema in {marker}; expected v{SCHEMA_VERSION}")
+
+
 def artifact_path(state_dir: Path, name: str) -> Path:
     known = {
         "insights": "insights.json",
         "website_dna": "website_dna.json",
+        "keyword_gaps": "keyword_gaps.json",
         "opportunities": "opportunities.json",
     }
     try:

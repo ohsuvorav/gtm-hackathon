@@ -1,7 +1,7 @@
 {
   "name": "info-to-content",
-  "version": "0.1.0",
-  "description": "Turn customer call transcripts into evidence-backed content opportunities, briefs, and drafts.",
+  "version": "0.1.0+codex.20260905171159",
+  "description": "Match connected customer calls to existing Surfer content gaps and create grounded drafts.",
   "author": {
     "name": "InfoToContent"
   },
@@ -17,8 +17,8 @@
   "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "InfoToContent",
-    "shortDescription": "Turn customer calls into grounded content",
-    "longDescription": "Extract evidence-backed customer insights from call transcripts, turn them into ranked content opportunities, enrich a selected idea with website and optional Surfer SEO context, and produce a reviewable brief and draft.",
+    "shortDescription": "Match customer calls to Surfer content gaps",
+    "longDescription": "Read an existing Surfer website audit, retrieve one call from Fyxer or another connected source, and automatically create one evidence-backed brief and draft when the call matches a viable missing-content topic.",
     "developerName": "InfoToContent",
     "category": "Productivity",
     "capabilities": [
@@ -27,9 +27,9 @@
       "Write"
     ],
     "defaultPrompt": [
-      "Analyze these customer call transcripts",
-      "What should we write about next?",
-      "Write the selected opportunity using Surfer"
+      "Match a Fyxer call to our Surfer content gaps",
+      "Draft content from a relevant connected call",
+      "Validate my InfoToContent evidence chain"
     ],
     "brandColor": "#315C4C"
   }

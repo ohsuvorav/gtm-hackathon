@@ -1,67 +1,70 @@
 # InfoToContent Codex plugin
 
-InfoToContent turns customer call transcripts into evidence-backed content opportunities, a selected content brief, and a Markdown draft. It keeps every transition inspectable in workspace-local JSON and can optionally enrich a selected idea through Surfer SEO's MCP server.
+InfoToContent finds one customer call in a connected source such as Fyxer, compares its evidence with an existing Surfer SEO website audit, and creates one reviewable Markdown draft when the call matches a viable missing-content recommendation.
 
-The plugin follows one deliberate pipeline:
+The authoritative v2 behavior is defined in [SPEC.md](SPEC.md).
 
 ```text
-transcripts → insights → opportunities → human selection → brief → draft
+existing Surfer gaps + connected call
+                ↓
+grounded insights → best match or no match
+                ↓
+          brief → draft → human review
 ```
 
-It never publishes content and does not put an OpenAI API key in Python. Codex performs the semantic work; the bundled Pydantic helpers validate evidence, references, scoring, and state before persistence.
+Surfer is an upstream requirement, not optional post-selection enrichment. The website must already be connected and audited. The plugin reads current `write` recommendations; it never starts an audit or publishes content.
 
 ## Requirements
 
 - Codex or ChatGPT with local plugin support
 - Python 3.11+
-- `uv` (recommended), or a virtual environment with `requirements.txt` installed
-- A Surfer account only for optional SEO enrichment; OAuth is handled by the bundled MCP connection
+- `uv` or an environment with `requirements.txt` installed
+- A connected and audited Surfer workspace
+- A separately connected call source such as Fyxer, or a supplied transcript
 
-## Local development
+Codex performs semantic extraction, relevance assessment, and drafting. Pydantic helpers validate raw-source provenance, exact quotes, Surfer IDs and metrics, and every cross-artifact reference.
 
-From this plugin directory:
+## Demo
+
+With Fyxer connected to the session and a recording named `call_transcript`, invoke:
+
+> Find the Fyxer recording "call_transcript", compare it with our Surfer content gaps, and create a draft if it is relevant.
+
+The skill reads Surfer first, retrieves only that recording, and either stops with an explicit no-match reason or returns one validated draft with a visible `Surfer gap → call quote → insight → draft` chain.
+
+Creating or updating a Surfer Content Editor is a separate opt-in action because it may consume a credit.
+
+## State
+
+State is versioned and written atomically under the active workspace:
+
+```text
+.infotocontent/
+├── state.json
+├── website_dna.json
+├── keyword_gaps.json
+├── insights.json
+├── sources/<source_id>.{json,txt}
+├── surfer/{brand_raw,recommendations_raw,custom_voice}.json
+├── matches/<source_id>.json
+├── opportunities.json
+├── briefs/<opportunity_id>.json
+└── drafts/<opportunity_id>.md
+```
+
+Validate a run with:
+
+```bash
+UV_PROJECT_ENVIRONMENT="$PWD/.infotocontent/.venv" \
+  uv run --project /path/to/info-to-content \
+  python /path/to/info-to-content/scripts/validate.py
+```
+
+Legacy unversioned state is rejected instead of silently mixed with the Surfer-first contract.
+
+## Development
 
 ```bash
 uv sync
 uv run python -m unittest discover -s tests -v
 ```
-
-The skill normally runs the scripts for you. To inspect a workspace manually:
-
-```bash
-UV_PROJECT_ENVIRONMENT=/path/to/project/.infotocontent/.venv \
-  uv run --project . python scripts/validate.py \
-  --state-dir /path/to/project/.infotocontent
-```
-
-## State
-
-The plugin writes only inside the active project by default:
-
-```text
-.infotocontent/
-├── insights.json
-├── website_dna.json
-├── opportunities.json
-├── surfer/<opportunity_id>.json
-├── briefs/<opportunity_id>.json
-└── drafts/<opportunity_id>.md
-```
-
-Candidate JSON is validated before these files are replaced, and writes are atomic.
-
-## Try it
-
-After installing the plugin, start a new Codex conversation in a project containing transcript files and say:
-
-> Analyze these customer call transcripts and show me what we should write about.
-
-Then select one of the persisted opportunities:
-
-> Write #2 using our website voice and Surfer.
-
-Codex will stop for selection unless your request already names an opportunity.
-
-## Packaging
-
-The plugin root contains the required `.codex-plugin/plugin.json`, one model-invoked skill under `skills/`, deterministic Python helpers under `scripts/`, and an optional Surfer MCP declaration in `.mcp.json`. That is the complete installable package; generated workspace state is intentionally excluded.
