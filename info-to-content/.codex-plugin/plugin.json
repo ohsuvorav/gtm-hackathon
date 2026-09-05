@@ -1,0 +1,36 @@
+{
+  "name": "info-to-content",
+  "version": "0.1.0",
+  "description": "Turn customer call transcripts into evidence-backed content opportunities, briefs, and drafts.",
+  "author": {
+    "name": "InfoToContent"
+  },
+  "license": "MIT",
+  "keywords": [
+    "content marketing",
+    "customer research",
+    "call transcripts",
+    "content briefs",
+    "Surfer SEO"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "InfoToContent",
+    "shortDescription": "Turn customer calls into grounded content",
+    "longDescription": "Extract evidence-backed customer insights from call transcripts, turn them into ranked content opportunities, enrich a selected idea with website and optional Surfer SEO context, and produce a reviewable brief and draft.",
+    "developerName": "InfoToContent",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Analyze these customer call transcripts",
+      "What should we write about next?",
+      "Write the selected opportunity using Surfer"
+    ],
+    "brandColor": "#315C4C"
+  }
+}
